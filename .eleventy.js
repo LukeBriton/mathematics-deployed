@@ -533,8 +533,24 @@ module.exports = function (eleventyConfig) {
   });
 
   eleventyConfig.addTransform("render-tikzjax", (() => {
-    let tikzQueue = Promise.resolve();    
+    let tikzQueue = Promise.resolve();
+
+    let tikzJobId = 0;
+    let active = 0;
     
+    const pendingQueue = [];          // [jobId, ...]
+    const activeJobs = new Map();     // jobId -> { tag, startedAt }
+
+    function snapshotQueues() {
+      const p = pendingQueue.join(",");
+      const a = Array.from(activeJobs.keys()).join(",");
+      return `pending(${pendingQueue.length})=[${p}] active(${activeJobs.size})=[${a}]`;
+    }
+
+    function logQueues(prefix, jobTag) {
+      console.log(`${prefix} ${jobTag} | ${snapshotQueues()}`);
+    }
+
     // https://github.com/artisticat1/obsidian-tikzjax/blob/main/main.ts
     function tidyTikzSource(src) {
       if (!src) return src;
@@ -547,7 +563,7 @@ module.exports = function (eleventyConfig) {
         .filter((line) => line.length > 0)  // Remove empty lines
         .join("\n");
     }
-    
+
     return async function (content, outputPath) {
       if (!outputPath || !outputPath.endsWith(".html")) return content;
       if (!content || !content.includes('class="block-language-tikz"')) return content;
@@ -556,19 +572,45 @@ module.exports = function (eleventyConfig) {
       const blocks = root.querySelectorAll("div.block-language-tikz");
       if (!blocks.length) return content;
 
+      let blockIndex = 0;
+
       for (const block of blocks) {
+        blockIndex++;
         const src = block.text || "";
         const texSource = tidyTikzSource(src);
+
+        const jobId = ++tikzJobId;
+        const jobTag = `[TikZ] #${jobId} ${outputPath} block ${blockIndex}/${blocks.length}`;
+
+        pendingQueue.push(jobId);
+        logQueues("[TikZ] ENQUEUE", jobTag);
+
         try {
-          const svg = await (tikzQueue = tikzQueue.then(() =>
-            tex2svg(texSource, {
+          const svg = await (tikzQueue = tikzQueue.then(() => {
+            const idx = pendingQueue.indexOf(jobId);
+            if (idx >= 0) pendingQueue.splice(idx, 1);
+
+            active++;
+            activeJobs.set(jobId, { tag: jobTag, startedAt: Date.now() });
+
+
+            if (activeJobs.size > 1 || active > 1) {
+              console.warn("[TikZ] CONCURRENCY DETECTED!", { active, activeJobsSize: activeJobs.size });
+            }
+
+            logQueues("[TikZ] START", jobTag);
+            const out = tex2svg(texSource, {
               // SvgOptions
               embedFontCss: true, // Whether to embed the font CSS file in the SVG.
               // TeXOptions
               showConsole: false, // Print log of TeX engine to console.
               texPackages: {},    // Additional TeX packages to load. e.g. texPackages: { pgfplots: '', amsmath: 'intlimits' },
               tikzLibraries: '',  // Additional TikZ libraries to load. e.g. tikzLibraries: 'arrows.meta,calc'
-            })
+            });
+
+
+            return out;
+          }
           ).catch((e) => { throw e; }));
           const svgElement = parse(svg)
             .querySelector("svg")                                   // after zooming some pictures could go wrong,
@@ -579,10 +621,19 @@ module.exports = function (eleventyConfig) {
           console.warn("[TikZJax] TeX source (first 400 chars):\n", texSource.slice(0, 400));
           console.warn("[TikZJax] Warn:", e);
           block.replaceWith(`<pre><code class="language-tikz">TikZ render failed. See build log.\n\n${(texSource)}</code></pre>`);
-          // tikzQueue = Promise.resolve();
-          tikzQueue = tikzQueue.catch(() => {}); // Prevent blocking
+          tikzQueue = Promise.resolve();
+          // tikzQueue = tikzQueue.catch(() => {}); // Prevent blocking
+          logQueues("[TikZ] FAIL", jobTag);
+        } finally {
+          const info = activeJobs.get(jobId);
+          const dur = info?.startedAt ? (Date.now() - info.startedAt) : null;
+
+          activeJobs.delete(jobId);
+          active--;
+
+          logQueues("[TikZ] END", jobTag + (dur != null ? ` (${dur}ms)` : ""));
         }
-      }
+      } 
 
       return root.toString();
     };
