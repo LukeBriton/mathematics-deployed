@@ -7,8 +7,7 @@ const tocPlugin = require("eleventy-plugin-nesting-toc");
 const { parse } = require("node-html-parser");
 const htmlMinifier = require("html-minifier-terser");
 const pluginRss = require("@11ty/eleventy-plugin-rss");
-const tex2svgImport = require("node-tikzjax");
-const tex2svg = tex2svgImport.default || tex2svgImport;
+const tex2svg = require("node-tikzjax").default;
 
 const { headerToId, namedHeadingsFilter } = require("./src/helpers/utils");
 const {
@@ -566,20 +565,22 @@ module.exports = function (eleventyConfig) {
               // SvgOptions
               embedFontCss: true, // Whether to embed the font CSS file in the SVG.
               // TeXOptions
-              showConsole: true, // Print log of TeX engine to console.
+              showConsole: false, // Print log of TeX engine to console.
               texPackages: {},    // Additional TeX packages to load. e.g. texPackages: { pgfplots: '', amsmath: 'intlimits' },
               tikzLibraries: '',  // Additional TikZ libraries to load. e.g. tikzLibraries: 'arrows.meta,calc'
             })
-          ).catch(() => {})); // Catch to prevent queue blocking
+          ).catch((e) => { throw e; }));
           const svgElement = parse(svg)
             .querySelector("svg")                                   // after zooming some pictures could go wrong,
             .setAttribute("style", "margin:auto; display:block;");  // e.g. oleeskild/obsidian-digital-garden#667
           block.replaceWith(svgElement);
         } catch (e) {
-          console.error("\n[TikZJax] render failed at:", outputPath);
-          console.error("[TikZJax] TeX source (first 400 chars):\n", texSource.slice(0, 400));
-          console.error("[TikZJax] Error:", e);
+          console.warn("\n[TikZJax] render failed at:", outputPath);
+          console.warn("[TikZJax] TeX source (first 400 chars):\n", texSource.slice(0, 400));
+          console.warn("[TikZJax] Warn:", e);
           block.replaceWith(`<pre><code class="language-tikz">TikZ render failed. See build log.\n\n${(texSource)}</code></pre>`);
+          // tikzQueue = Promise.resolve();
+          tikzQueue = tikzQueue.catch(() => {}); // Prevent blocking
         }
       }
 
