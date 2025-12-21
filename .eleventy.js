@@ -532,131 +532,64 @@ module.exports = function (eleventyConfig) {
     return content;
   });
 
-eleventyConfig.addTransform("render-tikzjax", (() => {
-  let tikzQueue = Promise.resolve();
+  eleventyConfig.addTransform("render-tikzjax", (() => {
+    let tikzQueue = Promise.resolve();
 
-  let tikzJobId = 0;
-  let active = 0;
-
-  const pendingQueue = [];
-  const activeJobs = new Map();
-
-  function snapshotQueues() {
-    const p = pendingQueue.join(",");
-    const a = Array.from(activeJobs.keys()).join(",");
-    return `pending(${pendingQueue.length})=[${p}] active(${activeJobs.size})=[${a}]`;
-  }
-  function logQueues(prefix, jobTag) {
-    console.log(`${prefix} ${jobTag} | ${snapshotQueues()}`);
-  }
-
-  function tidyTikzSource(src) {
-    if (!src) return src;
-    return src
-      .replaceAll("&nbsp;", "")
-      .replace(/\u00A0/g, "")
-      .replace(/\r\n/g, "\n")
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .join("\n");
-  }
-
-  // ✅ 新增：统一入队执行（并且把清理放进队列 task 的 finally）
-  function enqueueTikz(jobId, jobTag, texSource) {
-    pendingQueue.push(jobId);
-    logQueues("[TikZ] ENQUEUE", jobTag);
-
-    const run = tikzQueue
-      .catch(() => {}) // ✅ 治愈：避免上一次失败让链条 rejected
-      .then(async () => {
-        // pending -> active
-        const idx = pendingQueue.indexOf(jobId);
-        if (idx >= 0) pendingQueue.splice(idx, 1);
-
-        active++;
-        activeJobs.set(jobId, { tag: jobTag, startedAt: Date.now() });
-
-        if (activeJobs.size > 1 || active > 1) {
-          console.warn("[TikZ] CONCURRENCY DETECTED!", { active, activeJobsSize: activeJobs.size });
-        }
-
-        logQueues("[TikZ] START", jobTag);
-
-        try {
-          // ✅ 关键：await，保证 START/END/active 语义正确
-          return await tex2svg(texSource, {
-            embedFontCss: true,
-            showConsole: false,
-            texPackages: {},
-            tikzLibraries: "",
-          });
-        } finally {
-          const info = activeJobs.get(jobId);
-          const dur = info?.startedAt ? (Date.now() - info.startedAt) : null;
-
-          activeJobs.delete(jobId);
-          active--;
-
-          logQueues("[TikZ] END", jobTag + (dur != null ? ` (${dur}ms)` : ""));
-        }
-      });
-
-    // ✅ 推进全局队列，但永远保持它“可继续”
-    tikzQueue = run.catch(() => {});
-    return run; // 这个 run 用于让调用者拿到 svg 或捕获错误
-  }
-
-  return async function (content, outputPath) {
-    if (!outputPath || !outputPath.endsWith(".html")) return content;
-    if (!content || !content.includes('class="block-language-tikz"')) return content;
-
-    const root = parse(content);
-    const blocks = root.querySelectorAll("div.block-language-tikz");
-    if (!blocks.length) return content;
-
-    let blockIndex = 0;
-
-    for (const block of blocks) {
-      blockIndex++;
-      const src = block.text || "";
-      const texSource = tidyTikzSource(src);
-
-      const jobId = ++tikzJobId;
-      const jobTag = `[TikZ] #${jobId} ${outputPath} block ${blockIndex}/${blocks.length}`;
-
-      try {
-        const svg = await enqueueTikz(jobId, jobTag, texSource);
-
-        const svgNode = parse(svg).querySelector("svg");
-        if (!svgNode) throw new Error("tex2svg did not return <svg>");
-
-        svgNode.setAttribute("style", "margin:auto; display:block;");
-        block.replaceWith(svgNode);
-
-      } catch (e) {
-        console.warn("\n[TikZJax] render failed at:", outputPath);
-        console.warn("[TikZJax] TeX source (first 400 chars):\n", texSource.slice(0, 400));
-        console.warn("[TikZJax] Warn:", e);
-
-        // ✅ 失败时把 pending 清掉（以防极端情况下入队但未开始）
-        const idx = pendingQueue.indexOf(jobId);
-        if (idx >= 0) pendingQueue.splice(idx, 1);
-
-        block.replaceWith(
-          `<pre><code class="language-tikz">TikZ render failed. See build log.\n\n${texSource}</code></pre>`
-        );
-
-        logQueues("[TikZ] FAIL", jobTag);
-
-        // ❌ 不要 tikzQueue = Promise.resolve()
-        // ❌ 不要在这里做 active-- / activeJobs.delete（已经在队列 task 的 finally 做过了）
-      }
+    // https://github.com/artisticat1/obsidian-tikzjax/blob/main/main.ts
+    function tidyTikzSource(src) {
+      if (!src) return src;
+      return src
+        .replaceAll("&nbsp;", "")           // Remove non-breaking space characters, otherwise we get errors
+        .replace(/\u00A0/g, "")
+        .replace(/\r\n/g, "\n")             // Normalize line endings & Split into lines
+        .split("\n")
+        .map((line) => line.trim())         // Trim whitespace that is inserted when pasting in code, otherwise TikZJax complains
+        .filter((line) => line.length > 0)  // Remove empty lines
+        .join("\n");
     }
+    
+    return async function (content, outputPath) {
+      if (!outputPath || !outputPath.endsWith(".html")) return content;
+      if (!content || !content.includes('class="block-language-tikz"')) return content;
 
-    return root.toString();
-  };
-})());
+      const root = parse(content);
+      const blocks = root.querySelectorAll("div.block-language-tikz");
+      if (!blocks.length) return content;
+
+      for (const block of blocks) {
+        const src = block.text || "";
+        const texSource = tidyTikzSource(src);
+        try {
+          const run = tikzQueue
+          .catch(() => {})
+          .then(() =>
+            tex2svg(texSource, {
+              // SvgOptions
+              embedFontCss: true, // Whether to embed the font CSS file in the SVG.
+              // TeXOptions
+              showConsole: false, // Print log of TeX engine to console.
+              texPackages: {},    // Additional TeX packages to load. e.g. texPackages: { pgfplots: '', amsmath: 'intlimits' },
+              tikzLibraries: '',  // Additional TikZ libraries to load. e.g. tikzLibraries: 'arrows.meta,calc'
+            })
+          );
+          tikzQueue = run.catch(() => {});
+          const svg = await run;
+
+          const svgElement = parse(svg)
+            .querySelector("svg")                                   // after zooming some pictures could go wrong,
+            .setAttribute("style", "margin:auto; display:block;");  // e.g. oleeskild/obsidian-digital-garden#667
+          block.replaceWith(svgElement);
+        } catch (e) {
+          console.warn("\n[TikZJax] render failed at:", outputPath);
+          console.warn("[TikZJax] TeX source (first 400 chars):\n", texSource.slice(0, 400));
+          console.warn("[TikZJax] Warn:", e);
+          block.replaceWith(`<pre><code class="language-tikz">TikZ render failed. See build log.\n\n${(texSource)}</code></pre>`);
+        }
+      }
+
+      return root.toString();
+    };
+  })());
 
   eleventyConfig.addPassthroughCopy("src/site/img");
   eleventyConfig.addPassthroughCopy("src/site/scripts");
