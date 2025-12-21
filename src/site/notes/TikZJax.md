@@ -40,7 +40,7 @@ From [oleeskild/obsidian-digital-garden#667](https://github.com/oleeskild/obsidi
 \end{document}
 ```
 
-From https://github.com/artisticat1/obsidian-tikzjax:
+From https://github.com/artisticat1/obsidian-tikzjax :
 
 ```tikz
 \begin{document}
