@@ -7,6 +7,8 @@ const tocPlugin = require("eleventy-plugin-nesting-toc");
 const { parse } = require("node-html-parser");
 const htmlMinifier = require("html-minifier-terser");
 const pluginRss = require("@11ty/eleventy-plugin-rss");
+const tex2svgImport = require("node-tikzjax");
+const tex2svg = tex2svgImport.default || tex2svgImport;
 
 const { headerToId, namedHeadingsFilter } = require("./src/helpers/utils");
 const {
@@ -201,6 +203,11 @@ module.exports = function (eleventyConfig) {
               parts.slice(nbLinesToSkip).join("\n")
             )}</div></div>`;
           return res
+        }
+        if (token.info === "tikz") {
+          const code = token.content.trim();
+          const codeEscaped = md.utils.escapeHtml(code);
+          return `<div class="block-language-tikz">${codeEscaped}</div>`;
         }
 
         // Other languages
@@ -525,6 +532,60 @@ module.exports = function (eleventyConfig) {
     }
     return content;
   });
+
+  eleventyConfig.addTransform("render-tikzjax", (() => {
+    let tikzQueue = Promise.resolve();    
+    
+    // https://github.com/artisticat1/obsidian-tikzjax/blob/main/main.ts
+    function tidyTikzSource(src) {
+      if (!src) return src;
+      return src
+        .replaceAll("&nbsp;", "")           // Remove non-breaking space characters, otherwise we get errors
+        .replace(/\u00A0/g, "")
+        .replace(/\r\n/g, "\n")             // Normalize line endings & Split into lines
+        .split("\n")
+        .map((line) => line.trim())         // Trim whitespace that is inserted when pasting in code, otherwise TikZJax complains
+        .filter((line) => line.length > 0)  // Remove empty lines
+        .join("\n");
+    }
+    
+    return async function (content, outputPath) {
+      if (!outputPath || !outputPath.endsWith(".html")) return content;
+      if (!content || !content.includes('class="block-language-tikz"')) return content;
+
+      const root = parse(content);
+      const blocks = root.querySelectorAll("div.block-language-tikz");
+      if (!blocks.length) return content;
+
+      for (const block of blocks) {
+        const src = block.text || "";
+        const texSource = tidyTikzSource(src);
+        try {
+          const svg = await (tikzQueue = tikzQueue.then(() =>
+            tex2svg(texSource, {
+              // SvgOptions
+              embedFontCss: true, // Whether to embed the font CSS file in the SVG.
+              // TeXOptions
+              showConsole: true, // Print log of TeX engine to console.
+              texPackages: {},    // Additional TeX packages to load. e.g. texPackages: { pgfplots: '', amsmath: 'intlimits' },
+              tikzLibraries: '',  // Additional TikZ libraries to load. e.g. tikzLibraries: 'arrows.meta,calc'
+            })
+          ).catch(() => {})); // Catch to prevent queue blocking
+          const svgElement = parse(svg)
+            .querySelector("svg")                                   // after zooming some pictures could go wrong,
+            .setAttribute("style", "margin:auto; display:block;");  // e.g. oleeskild/obsidian-digital-garden#667
+          block.replaceWith(svgElement);
+        } catch (e) {
+          console.error("\n[TikZJax] render failed at:", outputPath);
+          console.error("[TikZJax] TeX source (first 400 chars):\n", texSource.slice(0, 400));
+          console.error("[TikZJax] Error:", e);
+          block.replaceWith(`<pre><code class="language-tikz">TikZ render failed. See build log.\n\n${(texSource)}</code></pre>`);
+        }
+      }
+
+      return root.toString();
+    };
+  })());
 
   eleventyConfig.addPassthroughCopy("src/site/img");
   eleventyConfig.addPassthroughCopy("src/site/scripts");
