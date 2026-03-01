@@ -186,7 +186,7 @@ Buggy:
 \end{document}
 ```
 
-Correct:
+Buggy: ([TikZJax] Warn: SvgoParserError: <input>:1:1190: Invalid character in tag name)
 
 ```tikz
 \usepackage{tikz-cd}
@@ -206,9 +206,9 @@ D_{<U\&V>}
 \end{document}
 ```
 
-Buggy:
+Buggy: ([TikZJax] Warn: Error: TeX engine render failed.)
 
-```
+```tikz
 \usepackage{tikz-cd}
 \begin{document}
 \begin{tikzcd}
