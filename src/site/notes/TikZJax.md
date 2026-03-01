@@ -164,22 +164,11 @@ Correct:
 
 ```tikz
 \usepackage{tikz-cd}
+\usepackage{amssymb}
 \begin{document}
 \begin{tikzcd}
-A \arrow[r, "{f:x<y}"'] \arrow[d, "{u>v}"] & B \arrow[d, "{m<n}"] \\
-C \arrow[r, "{p>q}"] & D
-\end{tikzcd}
-\end{document}
-```
-
-Buggy: ([TikZJax] Warn: Error: TeX engine render failed.)
-
-```tikz
-\usepackage{tikz-cd}
-\begin{document}
-\begin{tikzcd}
-A \arrow[r, "{f:x<y}"' \arrow[d, "{u>v}"] & B \arrow[d, "{m<n}"] \\
-C \arrow[r, "{p>q}"] & D
+	V \arrow[r, "f"] \arrow[d, "\mathbf{e}^j"'] & W \arrow[d, "\mathbf{\epsilon}_i"] \\
+	\mathbb{R}^n \arrow[r, "T"']                & \mathbb{R}^m                      
 \end{tikzcd}
 \end{document}
 ```
@@ -221,5 +210,20 @@ C_{<P\&Q>}
 &
 D_{<U\&V>}
 \end{tikzcd}
+\end{document}
+```
+
+Correct:
+```tikz
+\usepackage{tikz-cd}
+\usepackage{amssymb}
+\begin{document}
+	\begin{tikzcd}
+		\mathsf{\mathbb{R}}
+		\arrow[bend left=50, r, "\mathrm{floor\ or\ ceiling}", ""' name=U]
+		\arrow[bend right=50, r, "" name=D, "\supset"'] &
+		\mathsf{\mathbb{Z}} &
+		
+	\end{tikzcd}
 \end{document}
 ```
