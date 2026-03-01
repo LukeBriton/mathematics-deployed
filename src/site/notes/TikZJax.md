@@ -159,3 +159,69 @@ C' \arrow[rr,"k'" near end] \arrow[dr,swap,"c"] && D' \arrow[dr,swap,"d"] \\
 
 \end{document}
 ```
+
+Correct:
+
+```tikz
+\usepackage{tikz-cd}
+\usepackage{amssymb}
+\begin{document}
+\begin{tikzcd}
+	V \arrow[r, "f"] \arrow[d, "\mathbf{e}^j"'] & W \arrow[d, "\mathbf{\epsilon}_i"] \\
+	\mathbb{R}^n \arrow[r, "T"']                & \mathbb{R}^m                      
+\end{tikzcd}
+\end{document}
+```
+
+Buggy:
+
+```tikz
+\usepackage{tikz-cd}
+\usepackage{amssymb}
+\begin{document}
+\begin{tikzcd}
+	V \arrow[r, "f"] \arrow[d, "\mathbf{e}^j"'] & W \arrow[d, "\mathbf{\epsilon}_i"] \\
+	\mathbb{R}^n \arrow[r, "T"'                & \mathbb{R}^m                      
+\end{tikzcd}
+\end{document}
+```
+
+Correct:
+
+```tikz
+\usepackage{tikz-cd}
+\begin{document}
+\begin{tikzcd}
+A_{<L\&R>}
+  \arrow[r, "{f<g}"', "{h>k}"]
+  \arrow[d, "{u<v}"]
+&
+B_{<X\&Y>}
+  \arrow[d, "{m>n}"'] \\
+C_{<P\&Q>}
+  \arrow[r, "{p<q}", "{r>s}"']
+&
+D_{<U\&V>}
+\end{tikzcd}
+\end{document}
+```
+
+Buggy:
+
+```
+\usepackage{tikz-cd}
+\begin{document}
+\begin{tikzcd}
+A_{<L\&R>}
+  \arrow[r, "{f<g}"', "{h>k}"]
+  \arrow[d, "{u<v}"]
+&
+B_{<X\&Y>}
+  \arrow[d, "{m>n}"' \\
+C_{<P\&Q>}
+  \arrow[r, "{p<q}", "{r>s}"']
+&
+D_{<U\&V>}
+\end{tikzcd}
+\end{document}
+```
