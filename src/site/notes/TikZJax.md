@@ -164,29 +164,27 @@ Correct:
 
 ```tikz
 \usepackage{tikz-cd}
-\usepackage{amssymb}
 \begin{document}
 \begin{tikzcd}
-	V \arrow[r, "f"] \arrow[d, "\mathbf{e}^j"'] & W \arrow[d, "\mathbf{\epsilon}_i"] \\
-	\mathbb{R}^n \arrow[r, "T"']                & \mathbb{R}^m                      
+A \arrow[r, "{f:x<y}"'] \arrow[d, "{u>v}"] & B \arrow[d, "{m<n}"] \\
+C \arrow[r, "{p>q}"] & D
 \end{tikzcd}
 \end{document}
 ```
 
-Buggy:
+Buggy: ([TikZJax] Warn: Error: TeX engine render failed.)
 
 ```tikz
 \usepackage{tikz-cd}
-\usepackage{amssymb}
 \begin{document}
 \begin{tikzcd}
-	V \arrow[r, "f"] \arrow[d, "\mathbf{e}^j"'] & W \arrow[d, "\mathbf{\epsilon}_i"] \\
-	\mathbb{R}^n \arrow[r, "T"'                & \mathbb{R}^m                      
+A \arrow[r, "{f:x<y}"' \arrow[d, "{u>v}"] & B \arrow[d, "{m<n}"] \\
+C \arrow[r, "{p>q}"] & D
 \end{tikzcd}
 \end{document}
 ```
 
-Buggy: ([TikZJax] Warn: SvgoParserError: <input>:1:1190: Invalid character in tag name)
+Buggy: ([TikZJax] Warn: SvgoParserError: &lt;input&gt;:1:1190: Invalid character in tag name)
 
 ```tikz
 \usepackage{tikz-cd}
