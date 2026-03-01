@@ -567,13 +567,13 @@ module.exports = function (eleventyConfig) {
           console.warn("[TikZJax] Warn:", e);
           // Escape texSource to be interpreted as HTML properly.
           // https://stackoverflow.com/a/7382028
-          texSource = texSource
+          const texSource_escaped = texSource
             .replaceAll("&", "&amp;")
             .replaceAll("<", "&lt;")
             .replaceAll(">", "&gt;")
             .replaceAll('"', "&quot;")
             .replaceAll("'", "&#39;");
-          block.replaceWith(`<pre><code class="language-tikz">TikZ render failed. See build log.\n\n${(texSource)}</code></pre>`);
+          block.replaceWith(`<pre><code class="language-tikz">TikZ render failed. See build log.\n\n${(texSource_escaped)}</code></pre>`);
         }
       }
 
